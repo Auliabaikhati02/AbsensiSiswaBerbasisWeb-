@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="id" class="transition-all duration-500">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduFlow Pro | Dashboard Presensi & Reward</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = { darkMode: 'class' }
+    </script>
+
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%);
+        }
+        .dark {
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        }
+        body {
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .dark .glass {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        .stat-card { transition: all 0.3s ease; }
+        .stat-card:hover { transform: translateY(-5px); }
+        #qrcode img { margin: 0 auto; border: 8px solid white; border-radius: 12px; }
+        input::placeholder { opacity: 0.5; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <header class="flex flex-col md:flex-row justify-between items-center mb-8 glass p-6 rounded-[2rem] shadow-2xl">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                    <i class="fas fa-graduation-cap text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black tracking-tight text-indigo-900 dark:text-indigo-400">EDUFLOW<span class="text-indigo-500">PRO</span></h1>
+                    <p class="text-[10px] font-bold opacity-50 uppercase tracking-widest dark:text-slate-300">Sistem Poin Individu</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3 mt-4 md:mt-0">
+                <button onclick="ui.toggleTheme()" class="h-11 w-11 glass rounded-xl flex items-center justify-center hover:scale-110 transition text-indigo-600 dark:text-amber-400">
+                    <i id="theme-icon" class="fas fa-moon"></i>
+                </button>
+
+                <div class="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-5 py-2 rounded-2xl font-black flex items-center gap-2 border border-amber-200 dark:border-amber-800">
+                    <i class="fas fa-coins"></i>
+                    <span id="display-poin-aktif">0</span> PTS
+                </div>
+                
+                <button onclick="app.exportExcel()" class="h-11 px-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition shadow-sm flex items-center gap-2 font-bold text-xs">
+                    <i class="fas fa-file-excel"></i> EXPORT
+                </button>
+
+                <button onclick="app.confirmReset()" class="h-11 w-11 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 text-center">
+            <div class="stat-card glass p-5 rounded-3xl border-b-4 border-emerald-500">
+                <p class="text-[10px] font-bold text-emerald-600 uppercase mb-1">Hadir</p>
+                <h3 class="text-3xl font-black" id="stat-hadir">0</h3>
+            </div>
+            <div class="stat-card glass p-5 rounded-3xl border-b-4 border-amber-500">
+                <p class="text-[10px] font-bold text-amber-600 uppercase mb-1">Izin</p>
+                <h3 class="text-3xl font-black" id="stat-izin">0</h3>
+            </div>
+            <div class="stat-card glass p-5 rounded-3xl border-b-4 border-rose-500">
+                <p class="text-[10px] font-bold text-rose-600 uppercase mb-1">Sakit</p>
+                <h3 class="text-3xl font-black" id="stat-sakit">0</h3>
+            </div>
+            <div class="stat-card glass p-5 rounded-3xl border-b-4 border-indigo-500">
+                <p class="text-[10px] font-bold text-indigo-600 uppercase mb-1">Total Entri</p>
+                <h3 class="text-3xl font-black" id="stat-total">0</h3>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div class="lg:col-span-4 space-y-6">
+                <div class="glass p-8 rounded-[2.5rem] shadow-xl">
+                    <h2 class="text-xl font-black mb-6 flex items-center gap-2 text-indigo-900 dark:text-indigo-400">
+                        <i class="fas fa-user-edit"></i> Input Absensi
+                    </h2>
+                    
+                    <form id="attendanceForm" class="space-y-4" onsubmit="app.handleForm(event)">
+                        <div>
+                            <label class="text-[10px] font-extrabold uppercase ml-2 opacity-50">Nama Siswa</label>
+                            <input type="text" id="studentName" required oninput="app.syncPoin()" class="w-full p-4 rounded-2xl bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 focus:border-indigo-500 outline-none transition font-semibold" placeholder="Masukkan nama...">
+                        </div>
+                        
+                        <div>
+                            <label class="text-[10px] font-extrabold uppercase ml-2 opacity-50">Kelas</label>
+                            <input type="text" id="studentClass" required class="w-full p-4 rounded-2xl bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 focus:border-indigo-500 outline-none transition font-semibold" placeholder="Kelas">
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2 py-2">
+                            <button type="button" onclick="ui.setStatus('Hadir')" id="btn-hadir" class="py-3 rounded-xl border-2 border-emerald-500 text-emerald-600 font-bold transition text-xs">HADIR</button>
+                            <button type="button" onclick="ui.setStatus('Izin')" id="btn-izin" class="py-3 rounded-xl border-2 border-amber-500 text-amber-600 font-bold transition text-xs">IZIN</button>
+                            <button type="button" onclick="ui.setStatus('Sakit')" id="btn-sakit" class="py-3 rounded-xl border-2 border-rose-500 text-rose-600 font-bold transition text-xs">SAKIT</button>
+                        </div>
+
+                        <button type="submit" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition transform active:scale-95">
+                            SIMPAN DATA <i class="fas fa-paper-plane ml-1"></i>
+                        </button>
+                    </form>
+                </div>
+
+                <div class="glass p-6 rounded-[2.5rem] shadow-xl border-t-8 border-indigo-600">
+                    <h2 class="text-lg font-black mb-4 text-indigo-900 dark:text-indigo-400">Tukar Poin</h2>
+                    <div class="space-y-3">
+                        <div onclick="app.redeemItem('Kopi Kantin', 30)" class="flex justify-between items-center p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 cursor-pointer hover:scale-[1.02] transition group">
+                            <div class="flex items-center gap-3">
+                                <span class="text-2xl group-hover:rotate-12 transition">☕</span>
+                                <span class="font-bold text-sm">Kopi Kantin</span>
+                            </div>
+                            <span class="text-[10px] font-black bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full">30 PTS</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-8">
+                <div class="glass rounded-[2.5rem] shadow-xl overflow-hidden min-h-[550px]">
+                    <div class="p-8 bg-white/30 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                        <h2 class="text-xl font-black text-indigo-900 dark:text-indigo-400 uppercase">Riwayat Aktivitas</h2>
+                        <i class="fas fa-history text-slate-400"></i>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="text-left text-[11px] font-black uppercase text-slate-400 border-b border-slate-50 dark:border-slate-700">
+                                    <th class="px-8 py-5">Identitas Siswa</th>
+                                    <th class="px-6 py-5 text-center">Waktu</th>
+                                    <th class="px-6 py-5 text-center">Status</th>
+                                    <th class="px-8 py-5 text-right">Poin</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody" class="divide-y divide-slate-50 dark:divide-slate-700"></tbody>
+                        </table>
+                    </div>
+                    
+                    <div id="noData" class="flex flex-col items-center justify-center py-32 opacity-20">
+                        <i class="fas fa-folder-open text-6xl mb-4"></i>
+                        <p class="font-bold uppercase text-xs">Belum ada data masuk</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State Management
+        const state = {
+            currentStatus: 'Hadir',
+            logs: [],
+            pointsDB: {} // Format: { "Nama Siswa": TotalPoin }
+        };
+
+        // UI Controller
+        const ui = {
+            toggleTheme: () => {
+                const isDark = document.documentElement.classList.toggle('dark');
+                document.getElementById('theme-icon').className = isDark ? 'fas fa-sun' : 'fas fa-moon';
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            },
+            setStatus: (status) => {
+                state.currentStatus = status;
+                ['hadir', 'izin', 'sakit'].forEach(s => {
+                    const btn = document.getElementById(`btn-${s}`);
+                    btn.className = "py-3 rounded-xl border-2 font-bold transition text-xs " + 
+                        (s === status.toLowerCase() ? 
+                        `bg-${ui.getColor(status)}-500 text-white border-${ui.getColor(status)}-500` : 
+                        `border-${ui.getColor(s)}-500 text-${ui.getColor(s)}-600`);
+                });
+            },
+            getColor: (status) => {
+                const colors = { 'Hadir': 'emerald', 'Izin': 'amber', 'Sakit': 'rose', 'hadir': 'emerald', 'izin': 'amber', 'sakit': 'rose' };
+                return colors[status] || 'indigo';
+            }
+        };
+
+        // App Logic
+        const app = {
+            syncPoin: () => {
+                const name = document.getElementById('studentName').value.trim();
+                document.getElementById('display-poin-aktif').innerText = state.pointsDB[name] || 0;
+            },
+
+            handleForm: (e) => {
+                e.preventDefault();
+                const name = document.getElementById('studentName').value.trim();
+                const kelas = document.getElementById('studentClass').value;
+                const time = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+                const earn = (state.currentStatus === 'Hadir') ? 10 : 0;
+
+                // Update Database Poin
+                state.pointsDB[name] = (state.pointsDB[name] || 0) + earn;
+                
+                // Simpan Log
+                state.logs.unshift({ name, kelas, time, status: state.currentStatus, earn });
+                
+                app.updateTable();
+                app.syncPoin();
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil Disimpan',
+                    text: `${name} (${state.currentStatus}) +${earn} PTS`,
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+
+                e.target.reset();
+                ui.setStatus('Hadir');
+            },
+
+            updateTable: () => {
+                const tbody = document.getElementById('tableBody');
+                const noData = document.getElementById('noData');
+                
+                noData.style.display = state.logs.length ? 'none' : 'flex';
+                
+                // Update Statistik
+                const stats = state.logs.reduce((acc, log) => {
+                    acc[log.status]++;
+                    return acc;
+                }, { Hadir: 0, Izin: 0, Sakit: 0 });
+
+                document.getElementById('stat-hadir').innerText = stats.Hadir;
+                document.getElementById('stat-izin').innerText = stats.Izin;
+                document.getElementById('stat-sakit').innerText = stats.Sakit;
+                document.getElementById('stat-total').innerText = state.logs.length;
+
+                tbody.innerHTML = state.logs.map(log => `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                        <td class="px-8 py-5">
+                            <div class="font-extrabold text-indigo-900 dark:text-indigo-300">${log.name}</div>
+                            <div class="text-[10px] font-bold opacity-50 uppercase tracking-tighter">
+                                ${log.kelas} • <span class="text-indigo-600">Total: ${state.pointsDB[log.name]} PTS</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-5 text-center font-bold text-slate-400 text-xs">${log.time}</td>
+                        <td class="px-6 py-5 text-center">
+                            <span class="px-3 py-1 rounded-full text-[9px] font-black bg-${ui.getColor(log.status)}-100 text-${ui.getColor(log.status)}-700">
+                                ${log.status.toUpperCase()}
+                            </span>
+                        </td>
+                        <td class="px-8 py-5 text-right font-black text-indigo-600">+${log.earn}</td>
+                    </tr>
+                `).join('');
+            },
+
+            redeemItem: (item, cost) => {
+                // Ambil nama dari input atau dari log terakhir jika input kosong
+                const nameInput = document.getElementById('studentName').value.trim();
+                const lastLogName = state.logs.length ? state.logs[0].name : "";
+                const targetUser = nameInput || lastLogName;
+
+                if (!targetUser) {
+                    return Swal.fire('Data Belum Ada', 'Ketik nama siswa atau lakukan absen terlebih dahulu.', 'warning');
+                }
+
+                const currentPoints = state.pointsDB[targetUser] || 0;
+
+                if (currentPoints < cost) {
+                    return Swal.fire('Poin Kurang', `Siswa: ${targetUser}\nPoin: ${currentPoints} PTS\nKurang: ${cost - currentPoints} PTS lagi.`, 'error');
+                }
+
+                Swal.fire({
+                    title: 'Konfirmasi Penukaran',
+                    html: `Siswa <b>${targetUser}</b> akan menukar <b>${cost} PTS</b> untuk <b>${item}</b>.`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Tukarkan!',
+                    confirmButtonColor: '#4f46e5'
+                }).then(res => {
+                    if (res.isConfirmed) {
+                        state.pointsDB[targetUser] -= cost;
+                        app.updateTable();
+                        app.syncPoin();
+                        
+                        // Tampilkan QR Code
+                        Swal.fire({
+                            title: 'Kupon Berhasil Dibuat',
+                            html: `<div id="qrcode"></div><p class="mt-4 text-xs font-bold opacity-50 uppercase">Tunjukkan ke petugas kantin</p>`,
+                            didOpen: () => {
+                                new QRCode(document.getElementById("qrcode"), {
+                                    text: `USER:${targetUser}|ITEM:${item}|VALID:${new Date().getTime()}`,
+                                    width: 160,
+                                    height: 160
+                                });
+                            }
+                        });
+                    }
+                });
+            },
+
+            exportExcel: () => {
+                if (!state.logs.length) return Swal.fire('Kosong', 'Tidak ada data untuk diekspor', 'error');
+                const data = state.logs.map((l, i) => ({
+                    'No': i + 1, 'Nama': l.name, 'Kelas': l.kelas, 'Status': l.status, 'Poin Total': state.pointsDB[l.name]
+                }));
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Data");
+                XLSX.writeFile(wb, `EduFlow_Report.xlsx`);
+            },
+
+            confirmReset: () => {
+                Swal.fire({
+                    title: 'Reset Seluruh Sistem?',
+                    text: "Semua riwayat dan poin siswa akan dihapus permanen.",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#e11d48'
+                }).then(res => { if(res.isConfirmed) location.reload(); });
+            }
+        };
+
+        // Initialize Theme
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.classList.add('dark');
+            document.getElementById('theme-icon').className = 'fas fa-sun';
+        }
+        ui.setStatus('Hadir');
+    </script>
+</body>
+</html>
